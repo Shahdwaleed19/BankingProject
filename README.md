@@ -142,14 +142,7 @@ BankingProject/
 ├── sql/
 │   └── analytics_queries.sql
 │
-├── docs/
-│   ├── architecture.md
-│   └── pipeline_documentation.md
-│
-└── screenshots/
-    ├── pipeline_success.png
-    ├── hive_tables.png
-    └── fact_table.png
+
 ```
 
 The raw dataset is intentionally **not included in the GitHub repository**.
