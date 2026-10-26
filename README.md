@@ -1,737 +1,228 @@
 # Bank Marketing Data Engineering Pipeline
 
-##  Project Overview
+## Project Overview
 
-This project implements an end-to-end **Data Engineering pipeline** for the Bank Marketing dataset.
+An end-to-end Big Data Engineering project that processes the Bank Marketing dataset using **Hadoop, HDFS, PySpark, and Apache Hive**.
 
-The pipeline takes raw banking marketing data, stores it in **HDFS**, processes and cleans it using **Apache Spark**, loads the transformed data into a **Hive Data Warehouse**, and performs analytical queries on the final data warehouse.
+The pipeline stores raw data in HDFS, performs data cleaning and transformation with PySpark, loads the processed records into a Hive data warehouse, and runs SQL queries to analyze marketing campaign performance.
 
-The project demonstrates practical Data Engineering concepts including:
-
-- HDFS data storage
-- Apache Spark / PySpark
-- Data cleaning and transformation
-- Hive Data Warehouse
-- Star Schema
-- Dimension and Fact tables
-- ORC storage format
-- Snappy compression
-- Table partitioning
-- Table bucketing
-- Data validation
-- SQL analytics
-
----
+The project demonstrates practical concepts in ETL, dimensional modeling, analytical storage optimization, and data validation.
 
 ## Architecture
 
 ```text
-                Bank Marketing CSV
-                        │
-                        ▼
-              ┌─────────────────┐
-              │      HDFS       │
-              │  Raw Data Layer │
-              └────────┬────────┘
-                       │
-                       ▼
-              ┌─────────────────┐
-              │     PySpark     │
-              │ Cleaning & ETL  │
-              └────────┬────────┘
-                       │
-                       ▼
-              ┌─────────────────┐
-              │ Hive Staging    │
-              │     Table       │
-              └────────┬────────┘
-                       │
-                       ▼
-        ┌──────────────────────────────┐
-        │       Hive Data Warehouse    │
-        │                              │
-        │  Customer Dimension          │
-        │  Contact Dimension           │
-        │  Campaign Dimension          │
-        │  Date Dimension              │
-        │  Economic Dimension          │
-        │           ↓                  │
-        │      Campaign Fact           │
-        └──────────────┬───────────────┘
-                       │
-                       ▼
-              ┌─────────────────┐
-              │    Analytics    │
-              │   SQL Queries   │
-              └─────────────────┘
+Bank Marketing CSV
+        |
+        v
+       HDFS
+    Raw Storage
+        |
+        v
+     PySpark
+ Cleaning & ETL
+        |
+        v
+ Hive Staging Table
+        |
+        v
+ Hive Data Warehouse
+   Star Schema
+        |
+        +-- Dimension Tables
+        |
+        +-- Fact Table
+        |
+        v
+   SQL Analytics
 ```
 
----
+## Dataset
 
-##  Dataset
+The project uses the Bank Marketing dataset, which contains information about direct marketing campaigns conducted by a Portuguese banking institution.
 
-The project uses the **Bank Marketing** dataset.
+- **Records:** 41,188
+- **Columns:** 21
+- **Target variable:** `y`
+- **Source delimiter:** Semicolon (`;`)
 
-The dataset contains information about direct marketing campaigns performed by a Portuguese banking institution.
+The target variable is transformed into a numeric field named `subscribed`:
 
-The source file contains:
+- `yes` → `1`
+- `no` → `0`
 
-- **41,188 records**
-- **21 columns**
+The original dataset is not included in this repository. Place the source file in the HDFS location specified below before running the pipeline.
 
-Important attributes include:
-
-- Age
-- Job
-- Marital status
-- Education
-- Housing loan
-- Personal loan
-- Contact type
-- Campaign information
-- Previous campaign outcome
-- Call duration
-- Economic indicators
-- Subscription target
-
-The target variable is:
-
-```text
-y
-```
-
-where:
-
-```text
-yes → 1
-no  → 0
-```
-
-The original dataset uses a semicolon (`;`) as the delimiter.
-
----
-
-##  Technologies
+## Technologies
 
 | Technology | Purpose |
 |---|---|
-| Ubuntu Linux | Operating system |
-| Apache Hadoop | Distributed storage and processing |
-| HDFS | Raw and distributed data storage |
-| Apache Spark | Data processing and ETL |
-| PySpark | Python API for Spark |
+| Ubuntu Linux | Execution environment |
+| Apache Hadoop | Distributed data infrastructure |
+| HDFS | Raw data storage |
+| Apache Spark / PySpark | Data cleaning and ETL |
 | Apache Hive | Data warehouse and SQL analytics |
-| Beeline | Hive SQL interface |
-| ORC | Optimized table storage |
+| Beeline | Hive SQL access |
+| ORC | Columnar storage format |
 | Snappy | Data compression |
+| SQL | Analytical queries |
 | Git / GitHub | Version control |
 
----
-
-#  Project Structure
+## Project Structure
 
 ```text
 BankingProject/
-│
 ├── bank_pipeline.py
-│
 ├── README.md
-│
-├── requirements.txt
-│
-├── sql/
-│   └── analytics_queries.sql
-│
-
+├── .gitignore
+└── sql/
+    └── analytics_queries.sql
 ```
 
-The raw dataset is intentionally **not included in the GitHub repository**.
+## Pipeline Implementation
 
----
+### 1. Raw Data Ingestion
 
-#  1. Raw Data Storage
-
-The original CSV file is stored in HDFS.
-
-HDFS path:
+The pipeline reads the source CSV file from HDFS:
 
 ```text
 /user/hadoop/BankProject/raw/bank-additional-full.csv
 ```
 
-The file is read using:
+The input is loaded into a Spark DataFrame using the header row, inferred data types, and the semicolon delimiter.
 
-```python
-df = spark.read \
-    .option("header", "true") \
-    .option("inferSchema", "true") \
-    .option("sep", ";") \
-    .csv("hdfs:///user/hadoop/BankProject/raw/bank-additional-full.csv")
-```
+### 2. Data Cleaning and Transformation
 
-The source contains:
+The PySpark pipeline performs the following operations:
 
-```text
-41,188 records
-21 columns
-```
+- Handles categorical values marked as `unknown` by converting them to `NULL` where appropriate.
+- Converts the target variable `y` into a numeric `subscribed` field.
+- Renames columns containing dots to use Hive/Spark-friendly names.
+- Casts selected columns to appropriate numeric data types.
 
----
+### 3. Hive Data Warehouse
 
-#  2. Data Cleaning
+The pipeline creates the `bank_dw` database and organizes the processed data into a staging table, dimension tables, and a fact table.
 
-The PySpark pipeline performs several cleaning and transformation operations.
+The warehouse contains:
 
-### Handling Unknown Values
+| Table | Purpose |
+|---|---|
+| `staging_bank` | Stores transformed records before dimensional modeling |
+| `dim_customer` | Customer profile attributes |
+| `dim_contact` | Communication channel attributes |
+| `dim_campaign` | Campaign history attributes |
+| `dim_date` | Campaign month and day-of-week attributes |
+| `dim_economic` | Economic indicators |
+| `fact_campaign` | Campaign records and analytical measures |
 
-Categorical values such as:
+### 4. Dimensional Modeling
 
-```text
-unknown
-```
+The warehouse follows a Star Schema design, with `fact_campaign` referencing five dimension tables through surrogate keys.
 
-are converted to:
+**Important modeling note:** The source dataset does not provide a true customer identifier. Therefore, `customer_key` identifies a distinct combination of customer profile attributes rather than a verified individual customer.
 
-```text
-NULL
-```
+The `dim_date` table represents the available month and day-of-week attributes; it is not a complete calendar dimension containing every calendar date.
 
-where appropriate.
+### 5. Storage Optimization
 
-### Target Transformation
+The fact table is configured to use:
 
-The original target:
+- **ORC:** Columnar storage for analytical workloads.
+- **Snappy:** Compression.
+- **Partitioning by `month`:** Organizes records into month-based partitions.
+- **Bucketing by `customer_key`:** Uses eight configured buckets.
+- **Sorting by `customer_key`:** Configures the table's sorting property.
 
-```text
-y
-```
+These techniques demonstrate common Hive data organization and storage optimization approaches. Actual performance benefits depend on the execution environment, table layout, and query workload.
 
-is transformed into a numeric field:
+### 6. Data Validation
 
-```text
-subscribed
-```
+The pipeline includes checks for:
 
-with:
+- Record-count consistency across source, cleaned, staging, and fact data.
+- `NULL` foreign keys in the fact table.
 
-```text
-yes → 1
-no  → 0
-```
+These checks help identify record-count discrepancies and missing key values. They do not constitute a complete data-quality testing framework.
 
-### Column Name Cleaning
+## SQL Analytics
 
-Columns containing dots are renamed to Hive/Spark-friendly names.
+Analytical queries are available in:
 
-For example:
+`sql/analytics_queries.sql`
 
-```text
-emp.var.rate     → emp_var_rate
-cons.price.idx   → cons_price_idx
-cons.conf.idx    → cons_conf_idx
-nr.employed      → nr_employed
-```
+The queries explore campaign performance from different perspectives, including:
 
-### Data Types
+- Subscription rate by job category.
+- Subscription rate by education.
+- Subscription rate by contact type.
+- Average call duration by subscription outcome.
+- Subscription rate by month.
+- Previous campaign outcome and current subscription.
+- Campaign contact frequency.
+- Subscription rates by marital status.
+- Housing and personal loan attributes.
+- Overall campaign performance.
 
-Numeric columns are explicitly cast to appropriate numeric types.
+These analyses help demonstrate how the warehouse can support business-oriented reporting and exploration.
 
----
+## How to Run
 
-#  3. Hive Data Warehouse
+The following commands assume that Hadoop, Spark, Hive, and the HiveServer2 service are configured in the execution environment.
 
-The Hive database created for the project is:
-
-```text
-bank_dw
-```
-
-The warehouse follows a **Star Schema** design.
-
-## Tables
-
-```text
-staging_bank
-dim_customer
-dim_contact
-dim_campaign
-dim_date
-dim_economic
-fact_campaign
-```
-
----
-
-#  4. Star Schema
-
-```text
-                       dim_customer
-                            │
-                            │
-                            ▼
-dim_contact ───────► fact_campaign ◄────── dim_campaign
-                            │
-                            │
-                            ├──────────────► dim_date
-                            │
-                            │
-                            └──────────────► dim_economic
-```
-
-The central fact table stores campaign/contact events and references the dimension tables through surrogate keys.
-
----
-
-#  5. Customer Dimension
-
-Table:
-
-```text
-dim_customer
-```
-
-This dimension contains customer profile attributes such as:
-
-- Age
-- Job
-- Marital status
-- Education
-- Default
-- Housing
-- Loan
-
-### Important Note
-
-The source dataset does not contain a true customer ID.
-
-Therefore, the `customer_key` represents a distinct **customer profile combination**, rather than a confirmed real-world customer identifier.
-
----
-
-#  6. Contact Dimension
-
-Table:
-
-```text
-dim_contact
-```
-
-This dimension stores the type of communication used during the campaign.
-
-Examples include:
-
-```text
-cellular
-telephone
-```
-
----
-
-#  7. Campaign Dimension
-
-Table:
-
-```text
-dim_campaign
-```
-
-This dimension represents campaign-history attributes, including previous campaign outcomes and related campaign information.
-
-The surrogate key:
-
-```text
-campaign_key
-```
-
-is used by the fact table.
-
----
-
-#  8. Date Dimension
-
-Table:
-
-```text
-dim_date
-```
-
-The date dimension represents the campaign date-related information.
-
-The dimension contains attributes such as:
-
-- Month
-- Day of week
-
-A surrogate:
-
-```text
-date_key
-```
-
-is used to connect the date dimension to the fact table.
-
----
-
-#  9. Economic Dimension
-
-Table:
-
-```text
-dim_economic
-```
-
-This dimension contains economic indicators associated with the campaign records.
-
-Examples include:
-
-- Employment variation rate
-- Consumer price index
-- Consumer confidence index
-- Euribor 3-month rate
-- Number of employees
-
----
-
-#  10. Fact Table
-
-Table:
-
-```text
-fact_campaign
-```
-
-The fact table contains the measurable campaign events.
-
-Important columns include:
-
-```text
-customer_key
-contact_key
-campaign_key
-date_key
-economic_key
-campaign
-previous
-pdays
-duration
-subscribed
-month
-```
-
-The fact table contains:
-
-```text
-41,188 records
-```
-
-which matches the source dataset record count.
-
----
-
-#  11. ORC and Snappy Compression
-
-The warehouse tables use **ORC** for optimized analytical storage.
-
-The fact table uses:
-
-```text
-ORC
-```
-
-with:
-
-```text
-Snappy compression
-```
-
-This provides a columnar storage format suitable for analytical queries while reducing storage requirements.
-
----
-
-#  12. Partitioning
-
-The fact table is partitioned by:
-
-```text
-month
-```
-
-There are 10 partitions:
-
-```text
-apr
-aug
-dec
-jul
-jun
-mar
-may
-nov
-oct
-sep
-```
-
-### Why partition by month?
-
-`month` has relatively low cardinality and is frequently useful for analytical queries.
-
-For example:
-
-```sql
-SELECT *
-FROM fact_campaign
-WHERE month = 'may';
-```
-
-Hive can use partition pruning and read only the relevant partition instead of scanning all month partitions.
-
-This makes `month` a suitable partition column.
-
----
-
-#  13. Bucketing
-
-The fact table is also bucketed by:
-
-```text
-customer_key
-```
-
-using:
-
-```text
-8 buckets
-```
-
-The table is configured as:
-
-```text
-CLUSTERED BY (customer_key)
-SORTED BY (customer_key)
-INTO 8 BUCKETS
-```
-
-Bucketing distributes rows into a fixed number of files based on the hash of the bucket column.
-
-### Partitioning vs Bucketing
-
-Partitioning organizes data using explicit values:
-
-```text
-month = jan
-month = feb
-month = mar
-...
-```
-
-Bucketing distributes records internally based on a hash:
-
-```text
-customer_key
-       ↓
-   hash function
-       ↓
- ┌───┬───┬───┬───┬───┐
- │ B1│ B2│ B3│...│ B8│
- └───┴───┴───┴───┴───┘
-```
-
-The project therefore uses:
-
-```text
-Partitioning → month
-Bucketing    → customer_key
-```
-
----
-
-#  14. Data Validation
-
-The pipeline performs record-count and foreign-key validation.
-
-The final validation results were:
-
-```text
-Source records       : 41,188
-Clean records        : 41,188
-Staging records      : 41,188
-Customer dimension   : 13,006
-Contact dimension    : 2
-Campaign dimension   : 359
-Date dimension       : 50
-Economic dimension   : 375
-Fact records         : 41,188
-```
-
-Validation checks:
-
-```text
-✓ Source → Clean count check PASSED
-✓ Source → Staging count check PASSED
-✓ Source → Fact count check PASSED
-✓ Foreign key NULL check PASSED
-```
-
-This confirms that the ETL process preserved all source records through the staging and fact layers.
-
----
-
-#  15. Analytics
-
-The project includes SQL analytics queries stored in:
-
-```text
-sql/analytics_queries.sql
-```
-
-The queries analyze the campaign data from different dimensions.
-
-Examples include:
-
-### Subscription Rate by Job
-
-Analyzes subscription rates across different job categories.
-
-### Subscription Rate by Education
-
-Analyzes subscription rates across education categories.
-
-### Subscription by Contact Type
-
-Compares campaign results across communication types.
-
-### Average Call Duration
-
-Calculates average call duration for different subscription outcomes.
-
-### Subscription Rate by Month
-
-Analyzes campaign performance across different months.
-
-### Previous Campaign Outcome
-
-Examines the relationship between previous campaign outcomes and current subscriptions.
-
-### Campaign Contacts
-
-Analyzes the relationship between the number of campaign contacts and subscriptions.
-
-### Marital Status
-
-Analyzes subscription rates across marital-status categories.
-
-### Housing and Personal Loan
-
-Analyzes subscription rates based on housing and personal loan status.
-
-### Overall Campaign Performance
-
-The final analytics query produced:
-
-```text
-Total Contacts              : 41,188
-Total Subscriptions         : 4,640
-Overall Subscription Rate   : 11.27%
-Average Call Duration       : 258.29 seconds
-Average Campaign Contacts  : 2.57
-```
-
----
-
-#  16. How to Run the Project
-
-## Step 1 — Start Hadoop
-
-Make sure the Hadoop services are running.
-
-Check using:
+### Step 1: Check Hadoop Services
 
 ```bash
 jps
 ```
 
----
+Confirm that the required Hadoop services are running.
 
-## Step 2 — Verify the Raw Dataset
-
-Check the HDFS location:
+### Step 2: Verify the HDFS Dataset
 
 ```bash
 hdfs dfs -ls /user/hadoop/BankProject/raw/
 ```
 
-The dataset should be available at:
+Ensure that `bank-additional-full.csv` exists at the expected HDFS path.
 
-```text
-/user/hadoop/BankProject/raw/bank-additional-full.csv
-```
-
----
-
-## Step 3 — Run the PySpark Pipeline
-
-Run:
+### Step 3: Run the PySpark Pipeline
 
 ```bash
 spark-submit /home/hadoop/BankingProject/bank_pipeline.py
 ```
 
-The pipeline performs:
+Update the local script path if your project is stored elsewhere.
 
-```text
-Read
- ↓
-Clean
- ↓
-Transform
- ↓
-Create staging table
- ↓
-Create dimensions
- ↓
-Create fact table
- ↓
-Partition
- ↓
-Bucket
- ↓
-Validate
-```
-
----
-
-## Step 4 — Run Hive Analytics
-
-Run:
+### Step 4: Run the Analytics Queries
 
 ```bash
 beeline -u "jdbc:hive2://localhost:10000/default" -n hadoop \
 -f /home/hadoop/BankingProject/sql/analytics_queries.sql
 ```
 
----
+Update the SQL file path and connection settings to match your environment.
 
-#  17. Useful Hive Commands
+## Useful Hive Commands
 
-Show all tables:
+List warehouse tables:
 
 ```sql
 SHOW TABLES IN bank_dw;
 ```
 
-Describe the fact table:
+Inspect the fact table schema:
 
 ```sql
 DESCRIBE bank_dw.fact_campaign;
 ```
 
-Show the table definition:
+Inspect its table definition:
 
 ```sql
 SHOW CREATE TABLE bank_dw.fact_campaign;
 ```
 
-Show fact partitions:
+List fact table partitions:
 
 ```sql
 SHOW PARTITIONS bank_dw.fact_campaign;
@@ -744,71 +235,23 @@ SELECT COUNT(*)
 FROM bank_dw.fact_campaign;
 ```
 
----
+## Key Learning Outcomes
 
-#  18. Key Results
+This project provides hands-on practice with:
 
-The completed pipeline successfully processed:
+- Building an ETL pipeline using PySpark.
+- Reading data from HDFS.
+- Cleaning and transforming structured data.
+- Designing a Star Schema in Hive.
+- Creating fact and dimension tables.
+- Working with surrogate keys.
+- Configuring ORC storage and Snappy compression.
+- Applying Hive partitioning and bucketing.
+- Implementing basic record-count and key validation.
+- Writing SQL queries for business analytics.
 
-```text
-41,188 source records
-```
-
-and produced:
-
-```text
-41,188 fact records
-```
-
-The final warehouse contains:
-
-```text
-5 dimension/data supporting tables
-+
-1 fact table
-+
-1 staging table
-```
-
-The fact table is optimized using:
-
-```text
-ORC
-Snappy
-Partitioning
-Bucketing
-Sorting
-```
-
-The pipeline also successfully passed the implemented data-quality checks.
-
----
-
-#  19. Project Goals Achieved
-
-The project demonstrates the following Data Engineering concepts:
-
-- [x] HDFS data storage
-- [x] PySpark ETL
-- [x] Data cleaning
-- [x] Data transformation
-- [x] Hive database
-- [x] Star Schema
-- [x] Dimension tables
-- [x] Fact table
-- [x] Surrogate keys
-- [x] ORC storage
-- [x] Snappy compression
-- [x] Partitioning
-- [x] Bucketing
-- [x] Sorting
-- [x] Data validation
-- [x] SQL analytics
-- [x] End-to-end pipeline
-
----
-
-# ‍Author
+## Author
 
 **Shahd El-azab**
-Data Engineering / Big Data Project
+
+Big Data Engineering Project
